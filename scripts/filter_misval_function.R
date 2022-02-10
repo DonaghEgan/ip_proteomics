@@ -23,4 +23,18 @@ filter_missval_own <- function(protein.df, exp_design.df, thr = 0) {
 
 test <- filter_missval_own(protein_data, experimental_design) 
 
+## test code ####
+
+# Make assay values binary (1 = valid value)
+bin_data <- protein_data_imputed
+idx <- is.na(protein_data_imputed)
+bin_data[!idx] <- 1
+bin_data[idx] <- 0
+
+# Filter se on the maximum allowed number of
+# missing values per condition (defined by thr)
+keep <- bin_data %>%
+  data.frame() %>%
+  rownames_to_column() %>%
+  gather(ID, value, -rowname)
 
