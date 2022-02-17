@@ -97,7 +97,6 @@ dev.off()
 ## running PCA for each antibody separately ####
 
 ### Nivo ####
-
 nivo_annotation <- annotation_nostim[which(annotation_nostim$antibody %in% c("ConNivo", "PD1Nivo")),]
 nivo_imputed <- data.frame(readRDS("/home/degan/ip_proteomics/inputs/imputed_protein_matrix.Rds"))
 nivo_imputed <- nivo_imputed[,which(colnames(nivo_imputed) %in% rownames(nivo_annotation))]
