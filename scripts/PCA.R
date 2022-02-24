@@ -218,8 +218,8 @@ PCAvalues$replicate <- csab_annotation$replicate
 pca_after_crap <- ggplot(PCAvalues, aes(x = PC1, y = PC2, colour = condition, group = replicate)) +
   geom_point(aes(shape = replicate), size = 2) + scale_color_brewer(type = "qual") +
   theme_bw() +
-  ggplot2::labs(
-    x = paste0("PC1: ", round(percentVar[1] *  100), "% variance"),y = paste0("PC2: ", round(percentVar[2] * 100), "% variance"))
+  ggplot2::labs(x = paste0("PC1: ", round(percentVar[1] *  100), "% variance"),
+                y = paste0("PC2: ", round(percentVar[2] * 100), "% variance"))
 
 grid.arrange(pca_before_crap, pca_after_crap, ncol=2)
 

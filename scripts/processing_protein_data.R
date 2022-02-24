@@ -31,9 +31,9 @@ colnames(protein_data) <- gsub(x = colnames(protein_data), pattern = "LFQ\\.inte
 colnames(protein_data) <- gsub('.{7}$', '', colnames(protein_data))
 
 ## creating annotation dataframe according to substrings ####
-annotation_df <- data.frame(condition = experimental_design$condition, 
+annotation_df <- data.frame(condition = substr(sapply(strsplit(colnames(protein_data), "_"), "[", 1), 1, 3), 
                             row.names =  colnames(protein_data),
-                            antibody =  sapply(strsplit(colnames(protein_data), "_"), "[", 1),
+                            antibody = substr(sapply(strsplit(colnames(protein_data), "_"), "[", 1), 4,6),
                             time = sapply(strsplit(colnames(protein_data), "_"), "[", 2),
                             replicate = sapply(strsplit(colnames(protein_data), "_"), "[", 4),
                             pd1_exp = as.numeric(protein_data["Q15116",]))

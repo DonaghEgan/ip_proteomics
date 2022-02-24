@@ -111,7 +111,7 @@ upset(upset_df, sets = colnames(upset_df)[2:13], order.by = "freq",
       nsets = 12, keep.order = T, point.size = 1.8, text.scale = .8)
 dev.off() 
 
-## adding time as a model variable ####
+## Limma model with antibody as a random effect ####
 condition <- substr(sapply(strsplit(colnames(imputed_nostim), "_"), "[", 1), 1, 3)
 antibody <- substr(sapply(strsplit(colnames(imputed_nostim), "_"), "[", 1), 4,6)
 time <-  sapply(strsplit(colnames(imputed_nostim), "_"), "[", 2)
@@ -143,7 +143,7 @@ fit_ant_blocked <- contrasts.fit(fit, contrastP)
 fit_ant_blocked <- eBayes(fit_ant_blocked) 
 tt.PD1vsCtr <- topTable(fit_ant_blocked, number = nrow(fit_ant_blocked))
 
-coef_ctrl_ant <- list() ### varian of code: https://www.r-bloggers.com/concatenating-a-list-of-data-frames/
+coef_ctrl_ant <- list() 
 for (s in 1:length(colnames(contrastP))) {
   coef_ctrl_ant[[s]] <- topTable(fit_ant_blocked, coef=s, n=Inf)
   setDT(coef_ctrl_ant[[s]], keep.rownames = TRUE)[]
@@ -234,8 +234,6 @@ upset(upset_df, sets = colnames(upset_df)[2:5], order.by = "freq",
       keep.order = T, point.size = 1.8, text.scale = .8)
 dev.off()
 
-
-
 ## adding gene names to d_e_p ####
 gene_name_matrix <- pgroups[which(pgroups$Protein.IDs %in% rownames(tt.PD1vsCtr)),]
 tt.PD1vsCtr <- tt.PD1vsCtr %>% merge(gene_name_matrix[,c(1:4)], by.x = 0, by.y = "Protein.IDs")
@@ -257,8 +255,147 @@ cor_matrix <- cor(imputed_filtered_protein)
 pdf("/home/degan/ip_proteomics/figures/heatmap_antibodytype_blocked.pdf", width = 5, height = 5)
 ComplexHeatmap::Heatmap(cor_matrix,name = "Corr", top_annotation = heat_annotation, show_row_names = FALSE, 
                         show_column_names = FALSE)
-saveRDS(imputed_filtered_protein, "/home/degan/ip_proteomics/inputs/imputed_protein_matrix.Rds")
+saveRDS(imputed_filtered_protein, "/home/degan/ip_proteomics/inputs/protein_matrix_top100.Rds")
 dev.off()
+
+## Limma model with antibody as a fixed effect ####
+condition <- substr(sapply(strsplit(colnames(imputed_nostim), "_"), "[", 1), 1, 3)
+antibody <- substr(sapply(strsplit(colnames(imputed_nostim), "_"), "[", 1), 4,6)
+time <-  sapply(strsplit(colnames(imputed_nostim), "_"), "[", 2)
+
+time <- gsub("min", "", time)
+time <- gsub("hr", "", time)
+
+condition_time <- paste(condition,time, sep="_")
+
+designlimmaP <- as.data.frame(model.matrix(~ 0 + condition_time + antibody))
+colnames(designlimmaP) <- gsub("condition_time", "", colnames(designlimmaP))
+
+## contrast each control and PD1 for each antibody and timepoint  ####  
+contrastP <- limma::makeContrasts(PD1_0vsCON_0 = PD1_0 - Con_0,
+                                  PD1_5vsCON_5 = PD1_5 - Con_5,
+                                  PD1_20vsCON_20 = PD1_20 - Con_20,
+                                  PD1_24vsCON_24 = PD1_24 - Con_24,
+                                  levels=colnames(designlimmaP))
+
+fit_ant_fix <- lmFit(imputed_nostim, designlimmaP) # to check
+fit_ant_fix <- contrasts.fit(fit_ant_fix, contrastP)
+fit_ant_fix <- eBayes(fit_ant_fix) 
+
+coef_ctrl_ant <- list() 
+for (s in 1:length(colnames(contrastP))) {
+  coef_ctrl_ant[[s]] <- topTable(fit_ant_fix, coef=s, n=Inf)
+  setDT(coef_ctrl_ant[[s]], keep.rownames = TRUE)[]
+  coef_ctrl_ant[[s]]$type <- colnames(contrastP)[s]
+}
+
+diff_exp_protein <- do.call(rbind, coef_ctrl_ant)
+
+## adding gene names to d_e_p ####
+gene_name_matrix <- pgroups[which(pgroups$Protein.IDs %in% diff_exp_protein$rn),]
+diff_exp_protein <- diff_exp_protein %>%
+  left_join(gene_name_matrix[,c("Protein.IDs","Gene.names")], by = c("rn" = "Protein.IDs"))
+
+## remove PDCD1; we know its pulled down, and throws off significane level in plots ####
+## only for volcano plots 
+diff_exp_protein <- diff_exp_protein[which(!diff_exp_protein$Gene.names == "PDCD1"),]
+
+## plotting differentially expressed proteins
+library(EnhancedVolcano)
+g1 <- levels(as.factor(diff_exp_protein$type))
+plot_list = list()
+for (i in g1) {
+  temp <- subset(diff_exp_protein, type == paste0(i))
+  temp <- as.data.frame(temp[,c(2,6,8,9)])
+  p <- EnhancedVolcano(temp,
+                       lab = temp$Gene.names,
+                       x = "logFC",
+                       y = "adj.P.Val",
+                       pCutoff = 0.05, 
+                       FCcutoff = log2(1.5),
+                       col=c("grey", "grey", "grey", "red3"),
+                       colAlpha = 1, subtitle = " ",
+                       titleLabSize = 12,
+                       axisLabSize = 12,
+                       title = paste(i),
+                       captionLabSize = 0,
+                       labSize = 2.5,
+                       pointSize = 1,
+                       max.overlaps = 20,
+                       #transcriptLabSize = 4,
+                       #transcriptLabhjust = 0.5,
+                       #legend=c("","","",""),
+                       #legendPosition = "right",
+                       legendPosition = 'none'
+  )
+  t <- max(temp$logFC) + 1
+  
+  plot_list[[i]] = p + ggplot2::coord_cartesian(xlim=c(-t, t)) 
+  
+}
+
+## saving each volcano plot individually ####
+pdf("/home/degan/ip_proteomics/figures/antibody_fixed/volcano_plot_PD1vsctr0_fixed.pdf", height = 4, width = 6)
+plot_list[[1]]
+dev.off()
+
+pdf("/home/degan/ip_proteomics/figures/antibody_fixed/volcano_plot_PD1vsctr2_fixed.pdf", height = 4, width = 6)
+plot_list[[2]]
+dev.off()
+
+pdf("/home/degan/ip_proteomics/figures/antibody_fixed/volcano_plot_PD1vsctr3_fixed.pdf", height = 4, width = 6)
+plot_list[[3]]
+dev.off()
+
+pdf("/home/degan/ip_proteomics/figures/antibody_fixed/volcano_plot_PD1vsctr4_fixed.pdf", height = 4, width = 6)
+plot_list[[4]]
+dev.off()
+
+## plotting upset plot for PD1vsCtr ####
+upset_df <- diff_exp_protein
+upset_df$bin <- ifelse(diff_exp_protein$logFC >=1.5 & diff_exp_protein$adj.P.Val <0.05, 1, 0)
+upset_df <- acast(upset_df, type~rn, value.var="bin")
+upset_df <- t(upset_df)
+upset_df <- rownames_to_column(data.frame(upset_df))
+names(upset_df)[1] <- "Name"
+pdf("/home/degan/ip_proteomics/figures/antibody_fixed/upsetplot_pd1_vs_ctr.pdf", height = 5, width = 7)
+upset(upset_df, sets = colnames(upset_df)[2:5], order.by = "freq",
+      keep.order = T, point.size = 1.8, text.scale = .8)
+dev.off()
+
+## top 100 unique d_e_p according to abs t value ####
+top_proteins <- diff_exp_protein %>% arrange(desc(abs(t)))
+top_proteins <- top_proteins[duplicated(top_proteins[,"Gene.names"]),]
+top_proteins <- top_proteins[1:139,]
+
+imputed_filtered_protein <- imputed_nostim[which(rownames(imputed_nostim) %in% top_proteins$rn),]
+saveRDS(imputed_filtered_protein, "/home/degan/ip_proteomics/inputs/protein_matrix_top100.Rds")
+
+## clustering based on d_e_p that are significant ####
+## filter based on adj pval (<= 0.05) ####
+diff_exp_protein <- diff_exp_protein[which(diff_exp_protein$adj.P.Val <= .05),]
+## filter based on LogFC (>= 2) ####
+diff_exp_protein <- diff_exp_protein[which(diff_exp_protein$logFC >= 1.5),]
+
+dep_protein <- imputed_nostim[which(rownames(imputed_nostim) %in% diff_exp_protein$rn),]
+dep_protein$Row.names <- rownames(dep_protein)
+
+gene_name_matrix <- pgroups[which(pgroups$Protein.IDs %in% rownames(dep_protein)),]
+dep_protein <- dep_protein %>%
+  left_join(gene_name_matrix[,c("Protein.IDs","Gene.names")], by = c("Row.names" = "Protein.IDs"))
+dep_protein <- dep_protein[!duplicated(dep_protein[,"Gene.names"]),]
+rownames(dep_protein) <- NULL
+dep_protein <- dep_protein %>% column_to_rownames("Gene.names")
+dep_protein$Row.names <- NULL  
+
+## clustering using differentially expressed proteins ###
+pdf("/home/degan/ip_proteomics/figures/antibody_fixed/heatmap_dep.pdf", height = 8, width = 6)
+pheatmap::pheatmap(dep_protein, scale = "row", show_colnames = F,
+                   fontsize_row = 6, annotation = annotation_nostim[,c(1,2,3), drop=F])
+dev.off()
+
+
+
 
 
 
