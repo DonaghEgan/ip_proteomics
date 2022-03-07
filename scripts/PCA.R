@@ -9,6 +9,8 @@ library(ggpubr)
 library(reshape2)
 library(gridExtra)
 
+#### Note : stimulation: aCD3 aCD28 cell:bead 1:1 ## 
+
 set.seed(16351893)
 ## Read in imputed data matrix and anntotations ####
 imputed_data <- data.frame(readRDS("/home/degan/ip_proteomics/inputs/imputed_protein_matrix.Rds"))
@@ -30,13 +32,14 @@ PCAloadings <- data.frame(Variables = rownames(pca$rotation),  pca$rotation)
 PCAvalues$antibody <- annotation_df$antibody 
 PCAvalues$condition <- annotation_df$condition 
 PCAvalues$time <- annotation_df$time
-PCAvalues$batch <- annotation_df$batch
+PCAvalues$stim <- annotation_df$stimulation
+PCAvalues$replicate <- annotation_df$replicate
 PCAvalues$pdcd1 <- annotation_df$pd1_imputed
 
 ## pca for each antibody condition ####
-pdf("/home/degan/ip_proteomics/figures/pca_condtion&antibody.pdf", width = 5, height = 4)
-ggplot(PCAvalues, aes(x = PC1, y = PC2, colour = antibody, group = condition)) +
-  geom_point(aes(shape = condition), size = 2) + scale_color_viridis(discrete = T) +
+pdf("/home/degan/ip_proteomics/figures/pca_stim&time.pdf", width = 5, height = 4)
+ggplot(PCAvalues, aes(x = PC1, y = PC2, colour = time, group = stim)) +
+  geom_point(aes(shape = stim), size = 2) + scale_color_viridis(discrete = T) +
   theme_bw() +
   ggplot2::labs(
     x = paste0("PC1: ", round(percentVar[1] *  100), "% variance"),y = paste0("PC2: ", round(percentVar[2] * 100), "% variance"))
@@ -97,7 +100,7 @@ dev.off()
 ## running PCA for each antibody separately ####
 
 ### Nivo ####
-nivo_annotation <- annotation_nostim[which(annotation_nostim$antibody %in% c("ConNivo", "PD1Nivo")),]
+nivo_annotation <- annotation_df[which(annotation_df$antibody %in% c("Niv")),]
 nivo_imputed <- data.frame(readRDS("/home/degan/ip_proteomics/inputs/imputed_protein_matrix.Rds"))
 nivo_imputed <- nivo_imputed[,which(colnames(nivo_imputed) %in% rownames(nivo_annotation))]
 imputed_nostim <- imputed_nostim[which(rownames(imputed_nostim) %in% gene_name_matrix$Protein.IDs),]
@@ -112,9 +115,11 @@ PCAloadings <- data.frame(Variables = rownames(pca$rotation),  pca$rotation)
 
 PCAvalues$condition <- nivo_annotation$condition
 PCAvalues$replicate <- nivo_annotation$replicate
+PCAvalues$stim <- nivo_annotation$stimulation
+PCAvalues$time <- nivo_annotation$time
 
-pca_before_crap <- ggplot(PCAvalues, aes(x = PC1, y = PC2, colour = condition, group = replicate)) +
-  geom_point(aes(shape = replicate), size = 2) + scale_color_brewer(type = "qual")  +
+ggplot(PCAvalues, aes(x = PC1, y = PC2, colour = condition, group = stim)) +
+  geom_point(aes(shape = stim), size = 2) + scale_color_brewer(type = "qual")  +
   theme_bw() +
   ggplot2::labs(
     x = paste0("PC1: ", round(percentVar[1] *  100), "% variance"),y = paste0("PC2: ", round(percentVar[2] * 100), "% variance"))

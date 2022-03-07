@@ -15,6 +15,9 @@ pgroups <- read.table(file = "/mnt/Data/Vadim/POIAZ/Vadim/PPI/PPI_Martina_Jan/pr
 pgroups <- pgroups[pgroups$Reverse != "+" & pgroups$Potential.contaminant != "+", ]
 pgroups <- pgroups[,grepl("*rotein.IDs*|*names*|LFQ*", colnames(pgroups))]
 
+## meta data for transfering gene labels ####
+pgroups.meta <- pgroups[,c("Protein.IDs","Gene.names")]
+
 ## read in exp design - created by Vadim ####
 experimental_design <- read.csv(file = "/mnt/Data/Vadim/POIAZ/Vadim/PPI/PPI_Martina_Jan/experimental_design1.csv", sep = "\t", 
                                 colClasses=c("character","character"), header = F)
@@ -36,6 +39,7 @@ annotation_df <- data.frame(condition = substr(sapply(strsplit(colnames(protein_
                             antibody = substr(sapply(strsplit(colnames(protein_data), "_"), "[", 1), 4,6),
                             time = sapply(strsplit(colnames(protein_data), "_"), "[", 2),
                             replicate = sapply(strsplit(colnames(protein_data), "_"), "[", 4),
+                            stimulation = ifelse(grepl("Stim|_5min|_20",colnames(protein_data)),"stim","unstim"),
                             pd1_exp = as.numeric(protein_data["Q15116",]))
 
 ## Heatmap of missing values ####

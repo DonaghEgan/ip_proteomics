@@ -363,8 +363,8 @@ upset(upset_df, sets = colnames(upset_df)[2:5], order.by = "freq",
       keep.order = T, point.size = 1.8, text.scale = .8)
 dev.off()
 
-## top 100 unique d_e_p according to abs t value ####
-top_proteins <- diff_exp_protein %>% arrange(desc(abs(t)))
+## top 100 unique d_e_p according to t value - want upregulated in PD1 only ####
+top_proteins <- diff_exp_protein %>% arrange(desc(t))
 top_proteins <- top_proteins[duplicated(top_proteins[,"Gene.names"]),]
 top_proteins <- top_proteins[1:139,]
 

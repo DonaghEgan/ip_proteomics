@@ -151,7 +151,7 @@ pheatmap(imputed_filtered_time, cluster_rows = T, show_colnames = F,
 
 
 ## fgsea ####
-
+library(SBGNview)
 ensembl.pathway <- sbgn.gsets(id.type = "SYMBOL",
                               species = "hsa",
                               mol.type = "gene",
