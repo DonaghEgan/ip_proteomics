@@ -160,7 +160,6 @@ plot_list[[7]]
 dev.off()
 
 ## clustering based on top proteins ####
-
 ## top 100 unique d_e_p according to t value  ####
 set.seed(16351893)
 top_proteins <- diff_exp_protein %>% arrange(desc(t)) %>% group_by(type) %>% 
@@ -191,6 +190,7 @@ dev.off()
 
 ## venn diagram ####
 diff_exp_filter <- diff_exp_protein[which(diff_exp_protein$logFC >=1.5 & diff_exp_protein$adj.P.Val <0.05),]
+saveRDS(diff_exp_filter, "/home/degan/ip_proteomics/inputs/diff_bound_filter.Rds")
 
 gene_list <- list(PD1vsCtr = diff_exp_filter$Gene.names[diff_exp_filter$type=="PD1vsCtr"],
                   "PD1-time" = diff_exp_filter$Gene.names[diff_exp_filter$type %in% c("ST5vNsT0", "ST20vST5", "ST24vST20")],
@@ -243,6 +243,7 @@ ensembl.pathway <- sbgn.gsets(id.type = "SYMBOL",
 top_proteins_pd1time <- diff_exp_filter[(diff_exp_filter$Gene.names %in% gene_list[["PD1-time"]] &
                                          diff_exp_filter$type %in% c("ST5vNsT0", "ST20vST5", "ST24vST20")),] %>% 
                                          arrange(desc(t))
+saveRDS(top_proteins_pd1time, "/home/degan/ip_proteomics/inputs/ip_proteins_pd1time.Rds")
 
 genes <- top_proteins_pd1time %>% pull(logFC, Gene.names)
 names(genes) <- sub(";.*", "", names(genes))
