@@ -21,7 +21,7 @@ annotation_df <- cbind(annotation_df, t(imputed_data["Q15116", , drop = FALSE]))
 names(annotation_df)[6] <- "pd1_imputed"
 
 ## Running PCA ####
-pca <- prcomp(t(imputed_data))
+pca <- prcomp(t(imputed_data), center = T, scale. = T)
 percentVar <- pca$sdev^2/sum(pca$sdev^2)
 
 PCAvalues <- data.frame(pca$x)
@@ -34,63 +34,12 @@ PCAvalues$condition <- annotation_df$condition
 PCAvalues$time <- annotation_df$time
 PCAvalues$stim <- annotation_df$stimulation
 PCAvalues$replicate <- annotation_df$replicate
-PCAvalues$pdcd1 <- annotation_df$pd1_imputed
+PCAvalues$pdcd1 <- log2(annotation_df$pd1_imputed)
 
 ## pca for each antibody condition ####
 pdf("/home/degan/ip_proteomics/figures/pca_stim&time.pdf", width = 5, height = 4)
-ggplot(PCAvalues, aes(x = PC1, y = PC2, colour = time, group = stim)) +
-  geom_point(aes(shape = stim), size = 2) + scale_color_viridis(discrete = T) +
-  theme_bw() +
-  ggplot2::labs(
-    x = paste0("PC1: ", round(percentVar[1] *  100), "% variance"),y = paste0("PC2: ", round(percentVar[2] * 100), "% variance"))
-dev.off()
-
-## removing stimulation experiments are rerunning ####
-annotation_df$stimulation <- ifelse(grepl("Stim",rownames(annotation_df)), "Stimulated", "NotStim")
-annotation_nostim <- annotation_df[which(annotation_df$stimulation == "NotStim"),]
-
-imputed_nostim <- imputed_data[,which(colnames(imputed_data) %in% rownames(annotation_nostim))]
-
-## re-running PCA ####
-pca <- prcomp(t(imputed_nostim))
-percentVar <- pca$sdev^2/sum(pca$sdev^2)
-
-PCAvalues <- data.frame(pca$x)
-PCAloadings <- data.frame(Variables = rownames(pca$rotation),  pca$rotation)
-#PCAloadings <- PCAloadings %>% arrange(desc(abs(PC6)))
-
-## adding in ctrl vs stim variable ####
-PCAvalues$antibody <- annotation_nostim$antibody 
-PCAvalues$condition <- annotation_nostim$condition 
-PCAvalues$time <- annotation_nostim$time
-PCAvalues$replicate <- annotation_nostim$replicate
-PCAvalues$pdcd1 <- annotation_nostim$pd1_imputed
-
-pdf("/home/degan/ip_proteomics/figures/pca_condtion&antibody_nostim_crapremove.pdf", width = 5, height = 4)
-ggplot(PCAvalues, aes(x = PC1, y = PC6, colour = antibody, group = condition)) +
+ggplot(PCAvalues, aes(x = PC1, y = PC2, colour = antibody, group = condition)) +
   geom_point(aes(shape = condition), size = 2) + scale_color_viridis(discrete = T) +
-  theme_bw() +
-  ggplot2::labs(
-    x = paste0("PC1: ", round(percentVar[1] *  100), "% variance"),y = paste0("PC2: ", round(percentVar[2] * 100), "% variance"))
-dev.off()
-
-ggplot(PCAvalues, aes(x = PC1, y = PC6, colour = condition, group = replicate)) +
-  geom_point(aes(shape=replicate), size = 2) + scale_color_viridis(discrete = T) +
-  theme_bw() +
-  ggplot2::labs(
-    x = paste0("PC1: ", round(percentVar[1] *  100), "% variance"),y = paste0("PC2: ", round(percentVar[2] * 100), "% variance"))
-
-pdf("/home/degan/ip_proteomics/figures/pca_pdcd1exp_nostim.pdf", width = 5, height = 4)
-ggplot(PCAvalues, aes(x = PC1, y = PC2, colour = pdcd1)) +
-  geom_point(size = 2) + scale_color_viridis(discrete = F) +
-  theme_bw() +
-  ggplot2::labs(
-    x = paste0("PC1: ", round(percentVar[1] *  100), "% variance"),y = paste0("PC2: ", round(percentVar[2] * 100), "% variance"))
-dev.off()
-
-pdf("/home/degan/ip_proteomics/figures/pca_batch_nostim.pdf", width = 5, height = 4)
-ggplot(PCAvalues, aes(x = PC1, y = PC2, colour = batch)) +
-  geom_point(size = 2) + scale_color_viridis(discrete = T) +
   theme_bw() +
   ggplot2::labs(
     x = paste0("PC1: ", round(percentVar[1] *  100), "% variance"),y = paste0("PC2: ", round(percentVar[2] * 100), "% variance"))
@@ -103,11 +52,9 @@ dev.off()
 nivo_annotation <- annotation_df[which(annotation_df$antibody %in% c("Niv")),]
 nivo_imputed <- data.frame(readRDS("/home/degan/ip_proteomics/inputs/imputed_protein_matrix.Rds"))
 nivo_imputed <- nivo_imputed[,which(colnames(nivo_imputed) %in% rownames(nivo_annotation))]
-imputed_nostim <- imputed_nostim[which(rownames(imputed_nostim) %in% gene_name_matrix$Protein.IDs),]
-nivo_imputed_crap <- imputed_nostim [,which(colnames(imputed_nostim) %in% rownames(nivo_annotation))]
 
 ## before crap removal ####
-pca <- prcomp(t(nivo_imputed))
+pca <- prcomp(t(nivo_imputed), scale. = T, center = T)
 percentVar <- pca$sdev^2/sum(pca$sdev^2)
 
 PCAvalues <- data.frame(pca$x)
@@ -118,41 +65,22 @@ PCAvalues$replicate <- nivo_annotation$replicate
 PCAvalues$stim <- nivo_annotation$stimulation
 PCAvalues$time <- nivo_annotation$time
 
-ggplot(PCAvalues, aes(x = PC1, y = PC2, colour = condition, group = stim)) +
-  geom_point(aes(shape = stim), size = 2) + scale_color_brewer(type = "qual")  +
+pdf("/home/degan/ip_proteomics/figures/pca_con&time_nivo.pdf", width = 5, height = 4)
+ggplot(PCAvalues, aes(x = PC1, y = PC2, colour = condition, group = time)) +
+  geom_point(aes(shape = time), size = 2) + scale_color_brewer(type = "qual")  +
   theme_bw() +
   ggplot2::labs(
     x = paste0("PC1: ", round(percentVar[1] *  100), "% variance"),y = paste0("PC2: ", round(percentVar[2] * 100), "% variance"))
-
-## after crap removal ####
-pca <- prcomp(t(nivo_imputed_crap))
-percentVar <- pca$sdev^2/sum(pca$sdev^2)
-
-PCAvalues <- data.frame(pca$x)
-PCAloadings <- data.frame(Variables = rownames(pca$rotation),  pca$rotation)
-
-PCAvalues$condition <- nivo_annotation$condition
-PCAvalues$replicate <- nivo_annotation$replicate
-
-pca_after_crap <- ggplot(PCAvalues, aes(x = PC1, y = PC2, colour = condition, group = replicate)) +
-  geom_point(aes(shape = replicate), size = 2) + scale_color_brewer(type = "qual") +
-  theme_bw() +
-  ggplot2::labs(
-    x = paste0("PC1: ", round(percentVar[1] *  100), "% variance"),y = paste0("PC2: ", round(percentVar[2] * 100), "% variance"))
-
-grid.arrange(pca_before_crap, pca_after_crap, ncol=2)
-
+dev.off()
 
 ### Pem ####
 
-pem_annotation <- annotation_nostim[which(annotation_nostim$antibody %in% c("ConPem", "PD1Pem")),]
+pem_annotation <- annotation_df[which(annotation_df$antibody %in% c("Pem")),]
 pem_imputed <- data.frame(readRDS("/home/degan/ip_proteomics/inputs/imputed_protein_matrix.Rds"))
 pem_imputed <- pem_imputed[,which(colnames(pem_imputed) %in% rownames(pem_annotation))]
-imputed_nostim <- imputed_nostim[which(rownames(imputed_nostim) %in% gene_name_matrix$Protein.IDs),]
-pem_imputed_crap <- imputed_nostim[,which(colnames(imputed_nostim) %in% rownames(pem_annotation))]
 
 ## before crap removal ####
-pca <- prcomp(t(pem_imputed))
+pca <- prcomp(t(pem_imputed), scale. = T, center = T)
 percentVar <- pca$sdev^2/sum(pca$sdev^2)
 
 PCAvalues <- data.frame(pca$x)
@@ -160,42 +88,27 @@ PCAloadings <- data.frame(Variables = rownames(pca$rotation),  pca$rotation)
 
 PCAvalues$condition <- pem_annotation$condition
 PCAvalues$replicate <- pem_annotation$replicate
+PCAvalues$stim <- pem_annotation$stimulation
+PCAvalues$time <- pem_annotation$time
 
-
-pca_before_crap <- ggplot(PCAvalues, aes(x = PC1, y = PC2, colour = condition, group = replicate)) +
-  geom_point(aes(shape = replicate), size = 2) + scale_color_brewer(type = "qual") +
+pdf("/home/degan/ip_proteomics/figures/pca_con&time_pem.pdf", width = 5, height = 4)
+ggplot(PCAvalues, aes(x = PC1, y = PC2, colour = condition, group = time)) +
+  geom_point(aes(shape = time), size = 2) + scale_color_brewer(type = "qual", palette = "Set2") +
   theme_bw() +
   ggplot2::labs(
     x = paste0("PC1: ", round(percentVar[1] *  100), "% variance"),y = paste0("PC2: ", round(percentVar[2] * 100), "% variance"))
+dev.off()
 
-## after crap removal ####
-pca <- prcomp(t(pem_imputed_crap))
-percentVar <- pca$sdev^2/sum(pca$sdev^2)
 
-PCAvalues <- data.frame(pca$x)
-PCAloadings <- data.frame(Variables = rownames(pca$rotation),  pca$rotation)
-
-PCAvalues$condition <- pem_annotation$condition
-PCAvalues$replicate <- pem_annotation$replicate
-
-pca_after_crap <- ggplot(PCAvalues, aes(x = PC1, y = PC2, colour = condition, group = replicate)) +
-  geom_point(aes(shape = replicate),size = 2) + scale_color_brewer(type = "qual") +
-  theme_bw() +
-  ggplot2::labs(
-    x = paste0("PC1: ", round(percentVar[1] *  100), "% variance"),y = paste0("PC2: ", round(percentVar[2] * 100), "% variance"))
-
-grid.arrange(pca_before_crap, pca_after_crap, ncol=2)
 
 ### Csab ####
 
-csab_annotation <- annotation_nostim[which(annotation_nostim$antibody %in% c("ConCsab", "PD1Csab")),]
+csab_annotation <- annotation_df[which(annotation_df$antibody %in% c("Csa")),]
 csab_imputed <- data.frame(readRDS("/home/degan/ip_proteomics/inputs/imputed_protein_matrix.Rds"))
 csab_imputed <- csab_imputed[,which(colnames(csab_imputed) %in% rownames(csab_annotation))]
-imputed_nostim <- imputed_nostim[which(rownames(imputed_nostim) %in% gene_name_matrix$Protein.IDs),]
-csab_imputed_crap <- imputed_nostim[,which(colnames(imputed_nostim) %in% rownames(csab_annotation))]
 
 ## before crap removal ####
-pca <- prcomp(t(csab_imputed))
+pca <- prcomp(t(csab_imputed), scale. = T, center = T)
 percentVar <- pca$sdev^2/sum(pca$sdev^2)
 
 PCAvalues <- data.frame(pca$x)
@@ -203,30 +116,18 @@ PCAloadings <- data.frame(Variables = rownames(pca$rotation),  pca$rotation)
 
 PCAvalues$condition <- csab_annotation$condition
 PCAvalues$replicate <- csab_annotation$replicate
+PCAvalues$stim <- csab_annotation$stimulation
+PCAvalues$time <- csab_annotation$time
 
-pca_before_crap <- ggplot(PCAvalues, aes(x = PC1, y = PC2, colour = condition, group = replicate)) +
-  geom_point(aes(shape = replicate), size = 2) + scale_color_brewer(type = "qual") +
+pdf("/home/degan/ip_proteomics/figures/pca_con&time_csab.pdf", width = 5, height = 4)
+ggplot(PCAvalues, aes(x = PC1, y = PC2, colour = condition, group = time)) +
+  geom_point(aes(shape = time), size = 2) + scale_color_brewer(type = "qual", palette = "Set1") +
   theme_bw() +
   ggplot2::labs(
     x = paste0("PC1: ", round(percentVar[1] *  100), "% variance"),y = paste0("PC2: ", round(percentVar[2] * 100), "% variance"))
+dev.off()
 
-## after crap removal ####
-pca <- prcomp(t(csab_imputed_crap))
-percentVar <- pca$sdev^2/sum(pca$sdev^2)
 
-PCAvalues <- data.frame(pca$x)
-PCAloadings <- data.frame(Variables = rownames(pca$rotation),  pca$rotation)
-
-PCAvalues$condition <- csab_annotation$condition
-PCAvalues$replicate <- csab_annotation$replicate
-
-pca_after_crap <- ggplot(PCAvalues, aes(x = PC1, y = PC2, colour = condition, group = replicate)) +
-  geom_point(aes(shape = replicate), size = 2) + scale_color_brewer(type = "qual") +
-  theme_bw() +
-  ggplot2::labs(x = paste0("PC1: ", round(percentVar[1] *  100), "% variance"),
-                y = paste0("PC2: ", round(percentVar[2] * 100), "% variance"))
-
-grid.arrange(pca_before_crap, pca_after_crap, ncol=2)
 
 
 

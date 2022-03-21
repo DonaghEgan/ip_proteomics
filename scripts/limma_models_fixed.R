@@ -25,6 +25,8 @@ library(RColorBrewer)
 library(stringi)
 library(UpSetR)
 library(RVenn)
+library(openxlsx)
+library(tidyverse)
 
 ## Design 1: ####
 ## Comparing PD1 pull down exps with cd3/cd28 stimulation experiments across time points ####
@@ -84,6 +86,9 @@ diff_exp_protein <- do.call(rbind, coef_ctrl_ant)
 gene_name_matrix <- pgroups[which(pgroups$Protein.IDs %in% diff_exp_protein$rn),]
 diff_exp_protein <- diff_exp_protein %>%
   left_join(gene_name_matrix[,c("Protein.IDs", "Gene.names")], by = c("rn" = "Protein.IDs"))
+
+## saving differentially bound proteins as xls file ####
+write.xlsx(diff_exp_protein, '/home/degan/ip_proteomics/inputs/differentially_bound_proteins_long.xlsx')
 
 ## creating upset plot for each condition ####
 col_bars <- brewer.pal(n=3, name = "Set1")
@@ -159,96 +164,59 @@ pdf("/home/degan/ip_proteomics/figures/antibody_fixed/volcano_timecourse_pd1/vol
 plot_list[[7]]
 dev.off()
 
-## clustering based on top proteins ####
-## top 100 unique d_e_p according to t value  ####
-set.seed(16351893)
-top_proteins <- diff_exp_protein %>% arrange(desc(t)) %>% group_by(type) %>% 
-              dplyr::slice(1:10)
-
-annotation_subset <- annotation_df[which(annotation_df$time == "24hr" & annotation_df$stimulation == "unstim" |
-                                           annotation_df$condition == "Con"),]
-annotation_subset <- annotation_df[which(!rownames(annotation_df) %in% rownames(annotation_subset)),]
-
-imputed_top <- imputed_data[which(rownames(imputed_data) %in% top_proteins$rn),]
-
-
-imputed_top <- imputed_top[,which(colnames(imputed_top) %in% rownames(annotation_subset))]
-
-## resolving gene names ####
-imputed_top <- merge(top_proteins[,c("rn", "Gene.names")], imputed_top, by.x = "rn", by.y=0)
-imputed_top <- imputed_top[!duplicated(imputed_top[,"Gene.names"]),]
-rownames(imputed_top) <- NULL 
-imputed_top <- imputed_top %>% column_to_rownames("Gene.names")
-imputed_top$rn <- NULL
-
-pdf("/home/degan/ip_proteomics/figures/antibody_fixed/timecourse_PD1_clustering.pdf")
-pheatmap::pheatmap(imputed_top, scale = "row", show_colnames = FALSE, show_rownames = T,
-                   annotation = annotation_df[,c(1,3,5), drop=F], treeheight_row = 15,
-                   treeheight_col = 25, fontsize_row = 6)
-dev.off()
-
-
-## venn diagram ####
-diff_exp_filter <- diff_exp_protein[which(diff_exp_protein$logFC >=1.5 & diff_exp_protein$adj.P.Val <0.05),]
+## Filter proteins according to logFC and p-value ####
+diff_exp_filter <- diff_exp_protein[which(diff_exp_protein$logFC > 1.5 & diff_exp_protein$adj.P.Val <0.05),]
 saveRDS(diff_exp_filter, "/home/degan/ip_proteomics/inputs/diff_bound_filter.Rds")
+
+## save as wide format ####
+diff_exp_wide <- diff_exp_filter[,c("logFC", "Gene.names", "type")]
+diff_exp_wide <- reshape(diff_exp_wide, idvar = "Gene.names", timevar = "type", direction = "wide")
+diff_exp_wide[is.na(diff_exp_wide)] <- 0
+rownames(diff_exp_wide) <- NULL
+diff_exp_wide <- column_to_rownames(diff_exp_wide, "Gene.names")
+
+write.xlsx(diff_exp_wide, '/home/degan/ip_proteomics/inputs/differentially_bound_proteins_filter_wide.xlsx')
 
 gene_list <- list(PD1vsCtr = diff_exp_filter$Gene.names[diff_exp_filter$type=="PD1vsCtr"],
                   "PD1-time" = diff_exp_filter$Gene.names[diff_exp_filter$type %in% c("ST5vNsT0", "ST20vST5", "ST24vST20")],
                   "PD1vsCtr-time" = diff_exp_filter$Gene.names[diff_exp_filter$type %in% c("PD1_0vsCon_0", "PD1_20vsCon_20", 
                                                                        "PD1_24vsCon_24",   "PD1_5vsCon_5")])
+
 gene_list_v <- Venn(gene_list)
 pdf("/home/degan/ip_proteomics/figures/antibody_fixed/venn_diagram.pdf")
 ggvenn(gene_list_v)
 dev.off()
 
-## clustering according to pd1 time-course genes ####
-set.seed(16351893)
-top_proteins_pd1time <- diff_exp_filter[(diff_exp_filter$Gene.names %in% gene_list[["PD1-time"]] &
-                                         diff_exp_filter$type %in% c("ST5vNsT0", "ST20vST5", "ST24vST20")),] %>% arrange(desc(t)) %>% 
-                                         group_by(type) %>% dplyr::slice(1:10)
-
-annotation_subset <- annotation_df[which(!annotation_df$condition == "Con"),]
-annotation_subset <- annotation_subset[!(annotation_subset$stimulation == "unstim" &
-                                         annotation_subset$time == "24hr"),]
-
-imputed_top_pd1time <- imputed_data[which(rownames(imputed_data) %in% top_proteins_pd1time$rn),]
-
-
-## resolving gene names ####
-imputed_top_pd1time <- merge(top_proteins_pd1time[,c("rn", "Gene.names")], imputed_top_pd1time, by.x = "rn", by.y=0)
-imputed_top_pd1time <- imputed_top_pd1time[!duplicated(imputed_top_pd1time[,"Gene.names"]),]
-rownames(imputed_top_pd1time) <- NULL 
-imputed_top_pd1time <- imputed_top_pd1time %>% column_to_rownames("Gene.names")
-imputed_top_pd1time$rn <- NULL
-
-imputed_top_pd1time <- imputed_top_pd1time[,which(colnames(imputed_top_pd1time) %in% rownames(annotation_subset))]
-
-pdf("/home/degan/ip_proteomics/figures/antibody_fixed/timecourse_PD1_clustering.pdf")
-pheatmap::pheatmap(imputed_top_pd1time, scale = "row", show_colnames = FALSE, show_rownames = T,
-                   annotation = annotation_subset[,c(1,3,5), drop=F], treeheight_row = 15,
-                   treeheight_col = 25, fontsize_row = 6)
-dev.off()
-
-## fgsea time-course ###
-msigdbr_df <- msigdbr(species = "human", category = "H")
+## fgsea for each comparison ###
+msigdbr_df <- msigdbr(species = "human", category = "C2")
 pathwaysH = split(x = msigdbr_df$gene_symbol, f = msigdbr_df$gs_name)
 
 ensembl.pathway <- sbgn.gsets(id.type = "SYMBOL",
                               species = "hsa",
                               mol.type = "gene",
                               output.pathway.name = T, #T
-                              #database = "MetaCyc", 
+                              database = "MetaCyc", 
                               truncate.name.length = 100)
 
 top_proteins_pd1time <- diff_exp_filter[(diff_exp_filter$Gene.names %in% gene_list[["PD1-time"]] &
                                          diff_exp_filter$type %in% c("ST5vNsT0", "ST20vST5", "ST24vST20")),] %>% 
                                          arrange(desc(t))
+
+top_proteins_pd1_vsctr <- diff_exp_filter[(diff_exp_filter$Gene.names %in% gene_list[["PD1vsCtr-time"]] &
+                                           diff_exp_filter$type %in% c("PD1_24vsCon_24")),] %>% 
+  arrange(desc(t))
 saveRDS(top_proteins_pd1time, "/home/degan/ip_proteomics/inputs/ip_proteins_pd1time.Rds")
 
-genes <- top_proteins_pd1time %>% pull(logFC, Gene.names)
+genes <- top_proteins_pd1_vsctr %>% pull(logFC, Gene.names)
 names(genes) <- sub(";.*", "", names(genes))
 
-fgseaRes <- fgsea(pathways = pathwaysH, stats = genes)
+fgseaRes <- fgsea(pathways = ensembl.pathway, stats = genes, nPermSimple = 10000)
+
+
+
+
+
+
 
 
 

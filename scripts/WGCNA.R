@@ -11,12 +11,14 @@
 ## Library #### 
 ################################################################################
 
+library(stringi)
 library(WGCNA)
 library(AnnotationDbi)
 library(GO.db)
 library(org.Hs.eg.db)
 library(mgsa)
 library(clusterProfiler)
+library(RColorBrewer)
 options(stringsAsFactors = FALSE)
 
 ## Load in filtered differentially bound data and processed counts #####
@@ -102,7 +104,7 @@ sizeGrWindow(7, 6)
 plot(METree, main = "Clustering of module eigengenes",
      xlab = "", sub = "")
 
-MEDissThres = 0.3
+MEDissThres = 0.6
 ## Plot the cut line into the dendrogram
 abline(h=MEDissThres, col = "red")
 
@@ -130,6 +132,27 @@ moduleColors = mergedColors
 ## plotting module heatmap - all proteins #### 
 sizeGrWindow(9,9)
 TOMplot(dissTOM, geneTree, moduleColors, main = "Network heatmap plot, all genes")
+
+tom_annotation <- data.frame("module"=as.factor(moduleColors))
+tom_annotation$ind <- rownames(tom_annotation)
+tom_annotation <- data.frame(tom_annotation[geneTree[["order"]],])
+rownames(tom_annotation) <- paste("X", rownames(tom_annotation), sep="") 
+tom_annotation$ind <- NULL
+
+mycolors <- c(unique(as.character(tom_annotation$module)))
+names(mycolors) <-  unique(tom_annotation$module)
+mycolors <- list(module = mycolors)
+
+TOM_hm <- data.frame(dissTOM)
+pdf("/home/degan/ip_proteomics/figures/WGCNA/module_heatmap.pdf", height = 4, width = 4)
+pheatmap::pheatmap(TOM_hm, clustering_distance_cols = "euclidean", annotation = tom_annotation,
+                   color = colorRampPalette(rev(brewer.pal(n = 7, name = "RdYlBu")))(100),
+                   clustering_method = "complete", annotation_colors = mycolors,
+                   show_rownames = F, show_colnames = F, treeheight_row = 12,
+                   treeheight_col = 15)
+dev.off()
+
+
 
 ## Construct numerical labels corresponding to the colors ####
 colorOrder = c("grey", standardColors(50))
@@ -239,7 +262,7 @@ GO.df[,"UNIPROTKB"] <- names(mapping.index [GO.df[,"ID.index"] ])
 proteins.all <- sapply(strsplit(rownames(processed_ip), ";"), "[", 1)
 
 res.GO.ora_neg <- enricher(
-  gene=c(modGeneslist[["tan"]], modGeneslist[["red"]], modGeneslist[["purple"]]),
+  gene=c(modGeneslist[["grey"]]),
   pvalueCutoff = 1,
   pAdjustMethod = "bonferroni",
   universe=proteins.all,
