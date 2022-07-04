@@ -47,7 +47,9 @@ stim <- annotation_df$stimulation
 time <- stri_replace_all_regex(time, pattern = c('min', 'hr'), replacement = "", vectorize = F)
 condition_time <- paste(condition,time, sep="_") ## combining time and condition 
 con_time_stim <- paste(condition_time, stim, sep = "_")
+con_time_stim_ant <- paste(con_time_stim, antibody, sep = "_")
 
+## design matrix ####
 ## design matrix ####
 designlimmaP <- as.data.frame(model.matrix(~ 0 + con_time_stim + antibody))
 names(designlimmaP) <- gsub("con_time_stim", "", names(designlimmaP))
@@ -55,9 +57,9 @@ names(designlimmaP) <- gsub("con_time_stim", "", names(designlimmaP))
 ## contrasts ####
 # proteins that are differentially bound as a function of time  
 contrastP <- limma::makeContrasts(PD1vsCtr = (PD1_0_unstim + PD1_5_stim + 
-                                              PD1_20_stim + PD1_24_stim)/4 - 
-                                             (Con_0_unstim + Con_5_stim +
-                                              Con_20_stim + Con_24_stim)/4,
+                                                PD1_20_stim + PD1_24_stim)/4 - 
+                                    (Con_0_unstim + Con_5_stim +
+                                       Con_20_stim + Con_24_stim)/4,
                                   PD1_0vsCon_0 = PD1_0_unstim - Con_0_unstim,
                                   PD1_5vsCon_5 = PD1_5_stim-Con_5_stim,
                                   PD1_20vsCon_20 = PD1_20_stim-Con_20_stim,
@@ -93,7 +95,7 @@ write.xlsx(diff_exp_protein, '/home/degan/ip_proteomics/inputs/differentially_bo
 ## creating upset plot for each condition ####
 col_bars <- brewer.pal(n=3, name = "Set1")
 upset_df <- diff_exp_protein
-upset_df$bin <- ifelse(diff_exp_protein$logFC >=1.5 & diff_exp_protein$adj.P.Val <0.05, 1, 0)
+upset_df$bin <- ifelse(diff_exp_protein$logFC > 1.5 & diff_exp_protein$adj.P.Val <0.05, 1, 0)
 upset_df <- acast(upset_df, type~rn, value.var="bin")
 upset_df <- t(upset_df)
 upset_df <- rownames_to_column(data.frame(upset_df))
@@ -165,7 +167,7 @@ plot_list[[7]]
 dev.off()
 
 ## Filter proteins according to logFC and p-value ####
-diff_exp_filter <- diff_exp_protein[which(diff_exp_protein$logFC > 1.5 & diff_exp_protein$adj.P.Val <0.05),]
+diff_exp_filter <- diff_exp_protein[which(abs(diff_exp_protein$logFC) > 1 & diff_exp_protein$adj.P.Val <0.05),]
 saveRDS(diff_exp_filter, "/home/degan/ip_proteomics/inputs/diff_bound_filter.Rds")
 
 ## save as wide format ####

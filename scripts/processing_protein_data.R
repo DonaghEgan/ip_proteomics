@@ -6,6 +6,7 @@ library(pheatmap)
 library(tidyverse)
 library(imputeLCMD)
 library(vsn)
+library(readr)
 
 ## Reading in file ####
 pgroups <- read.table(file = "/mnt/Data/Vadim/POIAZ/Vadim/PPI/PPI_Martina_Jan/proteinGroups_PPI_Martina_Jan.txt", 
@@ -17,6 +18,7 @@ pgroups <- pgroups[,grepl("*rotein.IDs*|*names*|LFQ*", colnames(pgroups))]
 
 ## meta data for transfering gene labels ####
 pgroups.meta <- pgroups[,c("Protein.IDs","Gene.names")]
+saveRDS(pgroups.meta, "/home/degan/ip_proteomics/inputs/pggroups.meta.Rds")
 
 ## read in exp design - created by Vadim ####
 experimental_design <- read.csv(file = "/mnt/Data/Vadim/POIAZ/Vadim/PPI/PPI_Martina_Jan/experimental_design1.csv", sep = "\t", 
@@ -38,25 +40,26 @@ annotation_df <- data.frame(condition = substr(sapply(strsplit(colnames(protein_
                             row.names =  colnames(protein_data),
                             antibody = substr(sapply(strsplit(colnames(protein_data), "_"), "[", 1), 4,6),
                             time = sapply(strsplit(colnames(protein_data), "_"), "[", 2),
-                            replicate = sapply(strsplit(colnames(protein_data), "_"), "[", 4),
+                            batch = sapply(strsplit(colnames(protein_data), "_"), "[", 4),
                             stimulation = ifelse(grepl("Stim|_5min|_20",colnames(protein_data)),"stim","unstim"),
                             pd1_exp = as.numeric(protein_data["Q15116",]))
 
 ## Heatmap of missing values ####
-library(ComplexHeatmap)
 missval <- protein_data[apply(protein_data, 1, function(x) any(is.na(x))), ] # select only proteins with NA values
 missval <- ifelse(is.na(missval), 0, 1)
 
-heat_annotation <- ComplexHeatmap::HeatmapAnnotation(pd1_exp = as.numeric(annotation_df$pd1_exp),
+heat_annotation <- ComplexHeatmap::HeatmapAnnotation(time = annotation_df$time,
                                                      antibody =  annotation_df$antibody,
+                                                     stim = annotation_df$stimulation,
+                                                     batch = annotation_df$batch,
                                                      show_annotation_name = FALSE)
 
 pdf("/home/degan/ip_proteomics/figures/missingval_pd1.pdf", height = 5, width = 10)
 ComplexHeatmap::Heatmap(missval, col = c("white", "black"), column_names_side = "top", 
-              show_row_names = FALSE,  top_annotation = heat_annotation, show_column_names = TRUE, name = "Missing values pattern", 
-              column_names_gp = gpar(fontsize = 3), heatmap_legend_param = list(at = c(0,1), labels = c("Missing value", "Valid value")))
+              show_row_names = FALSE,  top_annotation = heat_annotation, show_column_names = F, name = "Missing values pattern", 
+              column_names_gp = gpar(fontsize = 3), show_column_dend = F, 
+              heatmap_legend_param = list(at = c(0,1), labels = c("Missing value", "Valid value")))
 dev.off()
-
 
 ## PD1 exp for each antibody condition ####
 pdf("~/ip_proteomics/figures/pd1exp_condition.pdf", width = 7, height = 5)
@@ -134,8 +137,17 @@ dev.off()
 
 ## normalize filtered protein data using global vsn transformation ####
 fit <- vsn::vsn2(as.matrix(protein_data_filtered))
-meanSdPlot(fit)
+meanSdPlot(fit) + theme_bw()
 protein_data_norm <- predict(fit, newdata= as.matrix(protein_data_filtered))
+
+## qq plots for before and after normalization ####
+###############################################################################
+
+qqnorm(protein_data_filtered[1,], pch = 1, frame = FALSE)
+qqline(protein_data_filtered[1,], col = "steelblue", lwd = 2)
+
+qqnorm(protein_data_norm[1,], pch = 1, frame = FALSE)
+qqline(protein_data_norm[1,], col = "steelblue", lwd = 2)
 
 ## Horizontal Imputation ####
 # GroupMeanGD
@@ -176,4 +188,22 @@ impdata.Horizontal_MinProb <- impute.MinProb(as.matrix(all), q = 0.01, tune.sigm
 ## save imputed protein data matrix ####
 saveRDS(impdata.Horizontal_MinProb, "/home/degan/ip_proteomics/inputs/imputed_protein_matrix.Rds")
 saveRDS(annotation_df, "/home/degan/ip_proteomics/inputs/annotation_df.Rds")
+
+write.csv(data.frame(t(impdata.Horizontal_MinProb)), "/home/degan/ip_proteomics/inputs/imputed_protein_matrix.csv", row.names = T)
+write.csv(annotation_df, "/home/degan/ip_proteomics/inputs/annotation_df.csv", row.names = T)
+
+## visualize number of proteins/sample ####
+protein_data_number <- ifelse(is.na(impdata.Horizontal_MinProb), 0, 1)
+protein_data_number <- as.data.frame(colSums(protein_data_number))
+protein_data_number$experiment <- rownames(protein_data_number)
+keep <- protein_data_number[apply(protein_data_number, MARGIN = 1, function(x) !all(is.na(x) == TRUE)), ]
+protein_data_number <- cbind(protein_data_number, annotation_df[,c(2,3,4), drop =FALSE])
+protein_data_number <- protein_data_number %>% arrange(desc(abs(`colSums(protein_data_number)`)))
+
+ggplot(protein_data_number, aes(x = experiment, y = `colSums(protein_data_number)`, fill = antibody)) + geom_bar(stat = "identity") + 
+  geom_hline(yintercept = nrow(keep)) + labs(title = "Proteins per sample", 
+                                             x = "", y = "Number of proteins")  + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, size=4)) 
+
+
 

@@ -93,7 +93,7 @@ plotDendroAndColors(geneTree, dynamicColors, "Dynamic Tree Cut",
                     main = "Gene dendrogram and module colors")
 
 ## Calculate eigengenes ####
-MEList = moduleEigengenes(t(processed_bound_pd1time), colors = dynamicColors)
+MEList = moduleEigengenes(t(diff_exp_counts_pd1), colors = dynamicColors)
 MEs = MEList$eigengenes
 ## Calculate dissimilarity of module eigengenes ####
 MEDiss = 1-cor(MEs)
@@ -104,12 +104,12 @@ sizeGrWindow(7, 6)
 plot(METree, main = "Clustering of module eigengenes",
      xlab = "", sub = "")
 
-MEDissThres = 0.6
+MEDissThres = 0.5
 ## Plot the cut line into the dendrogram
 abline(h=MEDissThres, col = "red")
 
 ## call an automatic merging function
-merge = mergeCloseModules(t(processed_bound_pd1time), dynamicColors, cutHeight = MEDissThres, verbose = 3)
+merge = mergeCloseModules(t(diff_exp_counts_pd1), dynamicColors, cutHeight = MEDissThres, verbose = 3)
 
 ## The merged module colors
 mergedColors = merge$colors

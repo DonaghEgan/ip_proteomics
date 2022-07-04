@@ -26,7 +26,6 @@ percentVar <- pca$sdev^2/sum(pca$sdev^2)
 
 PCAvalues <- data.frame(pca$x)
 PCAloadings <- data.frame(Variables = rownames(pca$rotation),  pca$rotation)
-#PCAloadings <- PCAloadings %>% arrange(desc(abs(PC6)))
 
 ## adding in ctrl vs stim variable ####
 PCAvalues$antibody <- annotation_df$antibody 
@@ -65,9 +64,9 @@ PCAvalues$replicate <- nivo_annotation$replicate
 PCAvalues$stim <- nivo_annotation$stimulation
 PCAvalues$time <- nivo_annotation$time
 
-pdf("/home/degan/ip_proteomics/figures/pca_con&time_nivo.pdf", width = 5, height = 4)
-ggplot(PCAvalues, aes(x = PC1, y = PC2, colour = condition, group = time)) +
-  geom_point(aes(shape = time), size = 2) + scale_color_brewer(type = "qual")  +
+pdf("/home/degan/ip_proteomics/figures/pca_stim.pdf", width = 5, height = 4)
+ggplot(PCAvalues, aes(x = PC1, y = PC2, colour = stim)) +
+  geom_point(size = 2) + scale_color_brewer(type = "qual",palette = "Dark2")  +
   theme_bw() +
   ggplot2::labs(
     x = paste0("PC1: ", round(percentVar[1] *  100), "% variance"),y = paste0("PC2: ", round(percentVar[2] * 100), "% variance"))
