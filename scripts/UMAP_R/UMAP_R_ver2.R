@@ -25,6 +25,7 @@ library(stringr)
 library(lme4)
 library(readxl)
 library(gdata)
+library(monocle3)
 
 ## Read in imputed data matrix and anntotations ####
 imputed_data <- data.frame(readRDS("/home/degan/ip_proteomics/inputs/imputed_protein_matrix.Rds"))
@@ -111,8 +112,8 @@ colData(cds)$cluster_id <- dplyr::recode(colData(cds)$cluster_id,
                                                  "7"="TCR complex",
                                                  "8"="Large Ribosomal subunit",
                                                  "9"="Cytosolic ribosome",
-                                                 "10"="CCR4-not complex",
-                                                 "11"="P-body",
+                                                 "10"="CCR4-NOT complex",
+                                                 "11"="CCR4-NOT core complex",
                                                  "12"="Ribonucleoprotein granule",
                                                  "13"="PD1/NF-kappaB",
                                                  "14"="Mito large ribo sub",
@@ -141,7 +142,7 @@ avg_cluster_pd1 <- melt(t(avg_cluster_pd1))
 
 ## draw and save plot #### 
 pdf("/home/degan/ip_proteomics/figures/UMAP/pd1_cluster_conVSpd1.pdf", height = 4, width = 4)
-ggplot(avg_cluster_pd1, aes(x=Var2, y=value, fill=Var2)) + 
+p1 <- ggplot(avg_cluster_pd1, aes(x=Var2, y=value, fill=Var2)) + 
   geom_boxplot() +  stat_compare_means(method = "t.test") + theme_classic() + xlab("Condition") +
   ylab("Mean PD1/NF-kappaB Abd") +  theme(legend.title=element_blank()) + scale_fill_npg()
 dev.off()
@@ -167,15 +168,15 @@ genes_cluster_tcr <- imputed_data[which(rownames(imputed_data) %in% genes_cluste
 genes_cluster_tcr_annot <- cbind(t(genes_cluster_tcr), annotation_df)
 
 ## average of each gene per antibody (csa,niv,pem)
-avg_cluster_tcr <- df <- aggregate(.~ antibody, genes_cluster_tcr_annot[,c(1:117,119)], mean)
-avg_cluster_tcr <- avg_cluster_tcr %>% column_to_rownames("antibody")
+avg_cluster_tcr <- df <- aggregate(.~ condition, genes_cluster_tcr_annot[,c(1:117,118)], mean)
+avg_cluster_tcr <- avg_cluster_tcr %>% column_to_rownames("condition")
 avg_cluster_tcr <- melt(t(avg_cluster_tcr))
 
 ## draw and save plot 
 pdf("/home/degan/ip_proteomics/figures/UMAP/tcr_cluster_conVSpd1.pdf", height = 4, width = 4)
-ggplot(avg_cluster_tcr, aes(x=Var2, y=value, fill=Var2)) + 
-  geom_boxplot(alpha = 0.7) + geom_point(alpha = 0.5) +
-  stat_compare_means(method = "t.test",comparisons = my_comparisons) + theme_classic() + xlab("Condition") +
+p2 <- ggplot(avg_cluster_tcr, aes(x=Var2, y=value, fill=Var2)) + 
+  geom_boxplot(alpha = 0.7)  +
+  stat_compare_means(method = "t.test") + theme_classic() + xlab("Condition") +
   ylab("TCR Complex") +  theme(legend.title=element_blank()) + scale_fill_npg()
 dev.off()
 
@@ -403,8 +404,10 @@ plot_cells(cds,
 
 ################################################################################
 
-cluster_assignment <- data.frame(cluster = cds@clusters@listData[["UMAP"]][["clusters"]])
+cluster_assignment <- data.frame(cluster = cds@clusters@listData[["UMAP"]][["clusters"]], 
+                                 cluster_id = colData(cds)$cluster_id)
 cluster_assignment <- merge(cluster_assignment, pgroups.meta, by.x =0 , by.y = "Protein.IDs")
+saveRDS(cluster_assignment, "/home/degan/ip_proteomics/inputs/cluster_assignments.Rds")
 
 GO_results_filter <- list()
 for (i in unique(cluster_assignment$cluster)) {
@@ -433,22 +436,13 @@ for (i in unique(cluster_assignment$cluster)) {
 }
 
 
-TMPO
-RPA3
-TFAM
-RPA1
-RPA2
-EDC4
-RUNX1
-DDHD1
-BANF1
-LEMD2
-TMPO
-PDCD1
-VRK3
-EMD
-DCP1A
-EDC3
-SSBP1
-CAD
-GAPVD1
+## Figure of GO term scores ####
+GO_scores <- read_xlsx("/home/degan/ip_proteomics/inputs/GO/GO_IP_proteomics.xlsx")
+GO_scores$logFWER <- -log(GO_scores$FWER_overrep + 0.01)
+
+pdf("/home/degan/ip_proteomics/figures/UMAP/GO_term_each_cluster.pdf", height = 4, width = 5)
+ggplot(data=GO_scores, aes(x=node_name, y=logFWER)) +
+  geom_bar(stat="identity", fill = "red") + coord_flip() + xlab("GO Term") + ylab("-Log(FWER overrep)") + 
+  theme_bw()
+dev.off()
+

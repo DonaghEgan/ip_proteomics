@@ -47,7 +47,6 @@ stim <- annotation_df$stimulation
 time <- stri_replace_all_regex(time, pattern = c('min', 'hr'), replacement = "", vectorize = F)
 condition_time <- paste(condition,time, sep="_") ## combining time and condition 
 con_time_stim <- paste(condition_time, stim, sep = "_")
-con_time_stim_ant <- paste(con_time_stim, antibody, sep = "_")
 
 ## design matrix ####
 ## design matrix ####
@@ -91,7 +90,7 @@ diff_exp_protein <- diff_exp_protein %>%
 
 ## saving differentially bound proteins as xls file ####
 write.xlsx(diff_exp_protein, '/home/degan/ip_proteomics/inputs/differentially_bound_proteins_long.xlsx')
-
+saveRDS(diff_exp_protein, '/home/degan/ip_proteomics/inputs/differentially_bound_proteins.Rds')
 ## creating upset plot for each condition ####
 col_bars <- brewer.pal(n=3, name = "Set1")
 upset_df <- diff_exp_protein
@@ -107,12 +106,15 @@ dev.off()
 
 
 ## proteins diff expressed all time points  ####
-common_genes <- diff_exp_protein
-common_genes$bin <- ifelse(common_genes$logFC >=1.5 & common_genes$adj.P.Val <0.05, 1, 0)
+common_genes <- diff_exp_protein[diff_exp_protein$type %in% c("PD1_0vsCon_0", "PD1_20vsCon_20", "PD1_24vsCon_24",   "PD1_5vsCon_5"),]
+common_genes$bin <- ifelse(abs(common_genes$logFC) > 1 & common_genes$adj.P.Val <0.05, 1, 0)
 common_genes <- acast(common_genes, type~rn, value.var="bin")
 common_genes <- t(common_genes)
 common_genes <- rownames_to_column(data.frame(common_genes))
 common_genes$sum <- rowSums(common_genes[,c(2:length(colnames(common_genes)))])
+common_genes<- common_genes %>%
+  left_join(gene_name_matrix[,c("Protein.IDs", "Gene.names")], by = c("rowname" = "Protein.IDs"))
+common_genes <- common_genes[common_genes$sum == 4,]
 
 ## plotting differentially expressed proteins ####
 library(EnhancedVolcano)
@@ -133,25 +135,24 @@ for (i in g1) {
                        axisLabSize = 12,
                        title = paste(i),
                        captionLabSize = 0,
-                       labSize = 2.5,
+                       labSize = 2,
                        pointSize = 1,
-                       max.overlaps = 20,
+                       max.overlaps = 30,
                        #transcriptLabSize = 4,
                        #transcriptLabhjust = 0.5,
                        #legend=c("","","",""),
                        #legendPosition = "right",
                        legendPosition = 'none'
   )
-  t <- max(temp$logFC) + 1
-  
+  t = max(temp$logFC)
   plot_list[[i]] = p + ggplot2::coord_cartesian(xlim=c(-t, t)) 
   
 }
 
 #plotting time-course 
 ## saving each volcano plot individually ####
-pdf("/home/degan/ip_proteomics/figures/antibody_fixed/volcano_timecourse_pd1/volcano_plot_PD1vsCtr.pdf", height = 5, width = 6)
-plot_list[[1]]
+pdf("/home/degan/ip_proteomics/figures/antibody_fixed/volcano_timecourse_pd1/volcano_plot_PD1vsCtr0.pdf", height = 5, width = 6)
+plot_list[[1]] 
 dev.off()
 
 pdf("/home/degan/ip_proteomics/figures/antibody_fixed/volcano_timecourse_pd1/volcano_plot_ST20vST5.pdf", height = 5, width = 6)
@@ -164,6 +165,10 @@ dev.off()
 
 pdf("/home/degan/ip_proteomics/figures/antibody_fixed/volcano_timecourse_pd1/volcano_plot_ST5vNsT0.pdf", height = 5, width = 6)
 plot_list[[7]]
+dev.off()
+
+pdf("/home/degan/ip_proteomics/figures/antibody_fixed/volcano_timecourse_pd1/volcano_plot_PD1vsCtr.pdf", height = 5, width = 6)
+plot_list[["PD1vsCtr"]]
 dev.off()
 
 ## Filter proteins according to logFC and p-value ####
@@ -179,10 +184,18 @@ diff_exp_wide <- column_to_rownames(diff_exp_wide, "Gene.names")
 
 write.xlsx(diff_exp_wide, '/home/degan/ip_proteomics/inputs/differentially_bound_proteins_filter_wide.xlsx')
 
-gene_list <- list(PD1vsCtr = diff_exp_filter$Gene.names[diff_exp_filter$type=="PD1vsCtr"],
-                  "PD1-time" = diff_exp_filter$Gene.names[diff_exp_filter$type %in% c("ST5vNsT0", "ST20vST5", "ST24vST20")],
-                  "PD1vsCtr-time" = diff_exp_filter$Gene.names[diff_exp_filter$type %in% c("PD1_0vsCon_0", "PD1_20vsCon_20", 
-                                                                       "PD1_24vsCon_24",   "PD1_5vsCon_5")])
+#gene_list <- list(PD1vsCtr = diff_exp_filter$Gene.names[diff_exp_filter$type=="PD1vsCtr"],
+#                  "PD1-time" = diff_exp_filter$Gene.names[diff_exp_filter$type %in% c("ST5vNsT0", "ST20vST5", "ST24vST20")],
+#                  "PD1vsCtr-time" = diff_exp_filter$Gene.names[diff_exp_filter$type %in% c("PD1_0vsCon_0", "PD1_20vsCon_20", 
+#                                                                       "PD1_24vsCon_24",   "PD1_5vsCon_5")])
+
+#gene_list <- data.frame(comparison = diff_exp_filter$type, gene=diff_exp_filter$Gene.names)
+#gene_list <- gene_list  %>% group_by(comparison) %>% summarise(across(everything(), str_c, collapse=" ")) 
+#gene_list <- gene_list[c(1:4),]
+#gene_list$comparison <- factor(gene_list$comparison,levels=c("PD1_0vsCon_0", "PD1_5vsCon_5","PD1_20vsCon_20", "PD1_24vsCon_24"))
+#gene_list$gene <- strsplit(gene_list$gene, split = " ")
+#gene_list_1 <- gene_list$gene
+#names(gene_list_1) <- gene_list$comparison
 
 gene_list_v <- Venn(gene_list)
 pdf("/home/degan/ip_proteomics/figures/antibody_fixed/venn_diagram.pdf")
@@ -215,8 +228,32 @@ names(genes) <- sub(";.*", "", names(genes))
 fgseaRes <- fgsea(pathways = ensembl.pathway, stats = genes, nPermSimple = 10000)
 
 
+## number of diff exp proteins and plotting as barplot ####
+number_proteins <- data.frame(table(diff_exp_filter$type))
+number_proteins <- number_proteins[c(1:4),]
+number_proteins$Var1 <- factor(number_proteins$Var1,levels=c("PD1_0vsCon_0", "PD1_5vsCon_5","PD1_20vsCon_20", "PD1_24vsCon_24"))
+
+pdf("/home/degan/ip_proteomics/figures/antibody_fixed/boxplot_freq_diff_exp_time.pdf", height = 3.5, width = 4)
+ggplot(data=number_proteins, aes(x=Var1, y=Freq, fill = Var1)) + 
+  geom_bar(stat="identity") + scale_fill_npg() + theme_bw() + xlab("Comparison") + ylab("Diff Bound Proteins (Log2FC>1, adj.p.val<0.05)") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, size = 0),
+        axis.title.x = element_text(size = 10), axis.title.y = element_text(size = 10)) + labs(fill="") 
+dev.off()
 
 
+## creating upset plot for each time point ####
+upset_df <- diff_exp_protein
+upset_df <- upset_df[diff_exp_protein$type %in% c("PD1_0vsCon_0", "PD1_5vsCon_5","PD1_20vsCon_20", "PD1_24vsCon_24"),]
+upset_df$type <- factor(upset_df$type,levels=c("PD1_0vsCon_0", "PD1_5vsCon_5","PD1_20vsCon_20", "PD1_24vsCon_24"))
+upset_df$bin <- ifelse(abs(upset_df$logFC) > 1 & upset_df$adj.P.Val <0.05, 1, 0)
+upset_df <- acast(upset_df, type~rn, value.var="bin")
+upset_df <- t(upset_df)
+upset_df <- rownames_to_column(data.frame(upset_df))
+names(upset_df)[1] <- "Name"
+pdf("/home/degan/ip_proteomics/figures/antibody_fixed/upsetplot_timepoints.pdf", height = 3, width = 4)
+upset(upset_df, sets = colnames(upset_df)[2:5], order.by = "freq",
+      nsets = 12, keep.order = T, point.size = 1.8, text.scale = .8, matrix.color = pal_npg("nrc")(10)[2])
+dev.off() 
 
 
 
