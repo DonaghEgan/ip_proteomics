@@ -57,7 +57,7 @@ heat_annotation <- ComplexHeatmap::HeatmapAnnotation(time = annotation_df$time,
 pdf("/home/degan/ip_proteomics/figures/missingval_pd1.pdf", height = 5, width = 10)
 ComplexHeatmap::Heatmap(missval, col = c("white", "black"), column_names_side = "top", 
               show_row_names = FALSE,  top_annotation = heat_annotation, show_column_names = F, name = "Missing values pattern", 
-              column_names_gp = gpar(fontsize = 3), show_column_dend = F, 
+              column_names_gp = gpar(fontsize = 3), show_column_dend = F, cluster_columns = T, cluster_rows = T,
               heatmap_legend_param = list(at = c(0,1), labels = c("Missing value", "Valid value")))
 dev.off()
 
