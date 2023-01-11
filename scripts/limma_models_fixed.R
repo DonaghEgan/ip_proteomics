@@ -38,7 +38,7 @@ imputed_data <- data.frame(readRDS("/home/degan/ip_proteomics/inputs/imputed_pro
 annotation_df <- readRDS("/home/degan/ip_proteomics/inputs/annotation_df.Rds")
 
 ## model variables ####
-condition <- annotation_df$condition
+condition <- annotation_df$type
 antibody <- annotation_df$antibody
 time <- annotation_df$time
 stim <- annotation_df$stimulation

@@ -106,3 +106,21 @@ my_comparisons <- list(c("Random", "PD1/NF-kappaB"), c("PD1_VS_CTRL_Public", "PD
 ggplot(cv_mean, aes(x=proteins, y=x)) + geom_boxplot() + geom_jitter(aes(color=condition)) + theme_bw() +
   theme(axis.text.x = element_text(angle=90)) + stat_compare_means(method = "wilcox.test", comparisons = my_comparisons)
 
+## ABUNDANCE OF PD1 CLUSTER AT EACH TIME POINT ####
+#################################################################################
+
+pd1_proteins_pd1 <- pd1_proteins[pd1_proteins$condition == "PD1" | pd1_proteins$time == "0min" & pd1_proteins$stimulation == "stim",]
+
+pd1_proteins$time_condition <- paste(pd1_proteins$time, pd1_proteins$condition, sep="_")
+
+proteins_time <- aggregate(.~ combo, data = pd1_proteins[,c(1:59,66)], mean)
+
+proteins_time <- proteins_time %>% column_to_rownames("combo") %>% t() %>% reshape2::melt()
+proteins_time$condition <- sub("_.*", "", proteins_time$Var2)
+
+proteins_time$condition <- sub(".*_", "", proteins_time$Var2)
+proteins_time$time <- factor(proteins_time$time, levels=c("0min", "5min","20min", "24hr"))
+
+
+ggplot(proteins_time, aes(x=time, y=value, color = condition)) + geom_point() +
+  geom_line() + theme_bw() + theme(axis.text.x = element_text(angle = 90)) 

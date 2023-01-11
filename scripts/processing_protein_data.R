@@ -41,8 +41,7 @@ annotation_df <- data.frame(condition = substr(sapply(strsplit(colnames(protein_
                             antibody = substr(sapply(strsplit(colnames(protein_data), "_"), "[", 1), 4,6),
                             time = sapply(strsplit(colnames(protein_data), "_"), "[", 2),
                             batch = sapply(strsplit(colnames(protein_data), "_"), "[", 4),
-                            stimulation = ifelse(grepl("Stim|_5min|_20",colnames(protein_data)),"stim","unstim"),
-                            pd1_exp = as.numeric(protein_data["Q15116",]))
+                            stimulation = ifelse(grepl("Stim|_5min|_20",colnames(protein_data)),"stim","unstim"))
 
 ## Heatmap of missing values ####
 missval <- protein_data[apply(protein_data, 1, function(x) any(is.na(x))), ] # select only proteins with NA values
@@ -189,7 +188,7 @@ impdata.Horizontal_MinProb <- impute.MinProb(as.matrix(all), q = 0.01, tune.sigm
 saveRDS(impdata.Horizontal_MinProb, "/home/degan/ip_proteomics/inputs/imputed_protein_matrix.Rds")
 saveRDS(annotation_df, "/home/degan/ip_proteomics/inputs/annotation_df.Rds")
 
-write.csv(data.frame(t(impdata.Horizontal_MinProb)), "/home/degan/ip_proteomics/inputs/imputed_protein_matrix.csv", row.names = T)
+write.csv(data.frame(impdata.Horizontal_MinProb), "/home/degan/ip_proteomics/inputs/imputed_protein_matrix.csv", row.names = T)
 write.csv(annotation_df, "/home/degan/ip_proteomics/inputs/annotation_df.csv", row.names = T)
 
 ## visualize number of proteins/sample ####

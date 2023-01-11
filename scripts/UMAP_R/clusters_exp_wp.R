@@ -11,6 +11,11 @@ gene_names <- data.frame(readRDS("/home/degan/ip_proteomics/inputs/pggroups.meta
 w_proteomics <- data.frame(readRDS("/home/degan/whole_proteomics/saved_objects/processed_proteomics.Rds"))
 exp_design_wp <- readRDS("/home/degan/whole_proteomics/saved_objects/experimental_design.Rds")
 
+## Phospho proteomics ####
+## Read in imputed data matrix and anntotations ####
+phos_proteomics <- readRDS("/mnt/Data/Vadim/POIAZ/Donagh/proteomics22_unified/processing_&_normalisation/saved_objects/phos_imputed_for_int.Rds")
+exp_design_wp <- readRDS("/home/degan/whole_proteomics/saved_objects/experimental_design.Rds")
+
 
 ## CALCULATE AVERAGE DIFFERENCE BETWEEN PD1 AND CTRL FOR EACH CLUSTERS - WP ####
 wp_diff <- list()
@@ -89,3 +94,32 @@ ggscatter(ip_wp_df, x = "wp", y = "ip", color = "complex",
           legend.position = "bottom", legend.text = element_text(size=8)) + 
           scale_color_manual(values =  col_vector)
 dev.off()
+
+## CALCULATE AVERAGE DIFFERENCE BETWEEN PD1 AND CTRL FOR EACH CLUSTERS - PHOSPHO ####
+phos_diff <- list()
+for (i in unique(cluster_info$cluster_id)) {
+  ## proteins for given cluster
+  cluster_proteins <- cluster_info[cluster_info$cluster_id == i,]
+  ## remove semi colon from proteins - not present in whole proteomics
+  cluster_proteins <- strsplit(cluster_proteins$Row.names, ";", fixed=F)
+  cluster_proteins <- Reduce(c,cluster_proteins)
+  
+  ## subset wp based on cluster proteins
+  cluster_phos <- w_proteomics[rownames(w_proteomics) %in% cluster_proteins,]
+  cluster_wp <- t(cluster_wp)
+  
+  ## add sample info 
+  cluster_wp <- merge(cluster_wp, exp_design_wp, by = 0)
+  cluster_wp <- cluster_wp %>% column_to_rownames("Row.names")
+  
+  ## mean proteins abundance for pd1 and ctrl 
+  cluster_wp_mean <- aggregate(.~ type, data = cluster_wp[,c(1:(ncol(cluster_wp)-7),(ncol(cluster_wp) - 2))], mean)
+  cluster_wp_mean <- cluster_wp_mean %>% column_to_rownames("type") %>% t() %>% data.frame()
+  
+  ## calculate diff 
+  mean_diff <- mean(cluster_wp_mean$PD1) - mean(cluster_wp_mean$CNTR)
+  
+  ## add to list 
+  wp_diff[[i]] <- mean_diff 
+}
+

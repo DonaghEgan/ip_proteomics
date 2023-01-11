@@ -26,6 +26,8 @@ library(lme4)
 library(readxl)
 library(gdata)
 library(monocle3)
+library(gprofiler2)
+library(RColorBrewer)
 
 ## Read in imputed data matrix and anntotations ####
 imputed_data <- data.frame(readRDS("/home/degan/ip_proteomics/inputs/imputed_protein_matrix.Rds"))
@@ -34,12 +36,13 @@ pgroups.meta <- readRDS("/home/degan/ip_proteomics/inputs/pggroups.meta.Rds")
 
 ## Store data in a cell_data_set object ####
 ################################################################################
+
 set.seed(16351893)
 
 cds <- new_cell_data_set(as.matrix(t(imputed_data)),
                          cell_metadata = NULL)
 
-cds = preprocess_cds(cds, num_dim = 100, method = "PCA", norm_method = "none")
+cds = preprocess_cds(cds, num_dim = 80, method = "PCA", norm_method = "none")
 
 cds = reduce_dimension(cds,
                        preprocess_method = "PCA",
@@ -52,16 +55,18 @@ cds = reduce_dimension(cds,
 ## cluster cells ####
 ################################################################################
 
-cds = cluster_cells(cds, resolution = 1e-3, k = 5)
+cds = cluster_cells(cds, resolution = 0.000501, k = 5)
 
 ## plot UMAP ####
 ################################################################################
 
+pdf("/home/degan/ip_proteomics/figures/UMAP/UMAP_clusters.pdf", height = 4, width = 4)
 plot_cells(cds, 
-           cell_size = 0.75,
+           cell_size = 0.5,
            label_groups_by_cluster = F,
            label_cell_groups = T, 
            group_label_size = 4)
+dev.off()
 
 ## protein cluster assignment ####
 ################################################################################
@@ -90,12 +95,30 @@ for (i in unique(cluster_assignment$cluster)) {
   
   res_hyper_bg = go_enrich(input_hyper_bg, n_randsets=1000)
   
-  ## subset: FDR < 0.05
-  res_hyper_bg = res_hyper_bg$results[res_hyper_bg$results$FWER_overrep < 0.1, ]
-  
   ## store in list 
   GO_results[[i]] <- res_hyper_bg
 }
+
+## profiler - includes kegg etc ####
+################################################################################
+
+gprofiler_results <- list()
+for (i in unique(cluster_assignment$cluster)) {
+  cluster_proteins <- cluster_assignment[cluster_assignment$cluster == i, , drop=F]
+  
+  ## create input dataframe with candidate and background genes
+  candi_gene_ids = cluster_proteins$Gene.names
+  candi_gene_ids <- strsplit(candi_gene_ids, ";", fixed=F)
+  candi_gene_ids <- Reduce(c,candi_gene_ids)
+  
+  gostres <- gost(query = candi_gene_ids,correction_method = c("fdr"), 
+                  organism = "hsapiens", significant = T, user_threshold = 0.05, 
+                  sources = c("GO", "KEGG", "REAC"))
+  
+  ## store in list 
+  gprofiler_results[[i]] <- gostres
+}
+
 
 ## Annotate Clusters according to GO ####
 ################################################################################
@@ -136,9 +159,9 @@ genes_cluster_pd1 <- imputed_data[which(rownames(imputed_data) %in% genes_cluste
 genes_cluster_pd1_annot <- cbind(t(genes_cluster_pd1), annotation_df)
 
 ## average of each gene per condition (PD1/Ctrl)
-avg_cluster_pd1 <- df <- aggregate(.~ condition, genes_cluster_pd1_annot[,c(1:60)], mean)
-avg_cluster_pd1 <- avg_cluster_pd1 %>% column_to_rownames("condition")
-avg_cluster_pd1 <- melt(t(avg_cluster_pd1))
+avg_cluster_pd1 <- aggregate(.~ type, genes_cluster_pd1_annot[,c(1:69)], mean)
+avg_cluster_pd1 <- avg_cluster_pd1 %>% column_to_rownames("type")
+avg_cluster_pd1 <- reshape2::melt(t(avg_cluster_pd1))
 
 ## draw and save plot #### 
 pdf("/home/degan/ip_proteomics/figures/UMAP/pd1_cluster_conVSpd1.pdf", height = 4, width = 4)
@@ -148,7 +171,7 @@ p1 <- ggplot(avg_cluster_pd1, aes(x=Var2, y=value, fill=Var2)) +
 dev.off()
 
 ## average of each gene per antibody (NIV/PEM/CSA)
-avg_cluster_ant <- df <- aggregate(.~ antibody, genes_cluster_pd1_annot[,c(1:59, 61)], mean)
+avg_cluster_ant <- aggregate(.~ antibody, genes_cluster_pd1_annot[,c(1:59, 61)], mean)
 avg_cluster_ant <- avg_cluster_ant %>% column_to_rownames("antibody")
 avg_cluster_ant<- melt(t(avg_cluster_ant))
 
@@ -163,13 +186,13 @@ ggplot(avg_cluster_ant, aes(x=Var2, y=value, fill=Var2, label=Var1)) +
 dev.off()
 
 ## TCR
-genes_cluster_tcr <- cluster_assignment[cluster_assignment$cluster == 7, , drop=F]
+genes_cluster_tcr <- cluster_assignment[cluster_assignment$cluster == 17, , drop=F]
 genes_cluster_tcr <- imputed_data[which(rownames(imputed_data) %in% genes_cluster_tcr$Row.names), ]
 genes_cluster_tcr_annot <- cbind(t(genes_cluster_tcr), annotation_df)
 
 ## average of each gene per antibody (csa,niv,pem)
-avg_cluster_tcr <- df <- aggregate(.~ condition, genes_cluster_tcr_annot[,c(1:117,118)], mean)
-avg_cluster_tcr <- avg_cluster_tcr %>% column_to_rownames("condition")
+avg_cluster_tcr <- df <- aggregate(.~ type, genes_cluster_tcr_annot[,c(1:10)], mean)
+avg_cluster_tcr <- avg_cluster_tcr %>% column_to_rownames("type")
 avg_cluster_tcr <- melt(t(avg_cluster_tcr))
 
 ## draw and save plot 
@@ -177,7 +200,7 @@ pdf("/home/degan/ip_proteomics/figures/UMAP/tcr_cluster_conVSpd1.pdf", height = 
 p2 <- ggplot(avg_cluster_tcr, aes(x=Var2, y=value, fill=Var2)) + 
   geom_boxplot(alpha = 0.7)  +
   stat_compare_means(method = "t.test") + theme_classic() + xlab("Condition") +
-  ylab("TCR Complex") +  theme(legend.title=element_blank()) + scale_fill_npg()
+  ylab("TCR Complex") +  theme(legend.title=element_blank())
 dev.off()
 
 ## average of each gene per antibody (NIV/PEM/CSA)
@@ -189,7 +212,7 @@ avg_cluster_ant<- melt(t(avg_cluster_ant))
 ################################################################################
 
 ## turn clusters to a list to be scored ####
-cluster_ids <- data.frame(cluster_id = cds@colData@listData[["cluster_id"]])
+cluster_ids <- data.frame(cluster_id =  cds@clusters@listData[["UMAP"]][["clusters"]])
 cluster_ids$protein <- rownames(cluster_ids)
 cluster_ids <- cluster_ids  %>% group_by(cluster_id) %>% summarise(across(everything(), str_c, collapse=" ")) 
 cluster_ids$protein <- strsplit(cluster_ids$protein, split = " ")
@@ -199,7 +222,7 @@ names(cluster_list) <- cluster_ids$cluster_id
 ## score list ssgsea ####
 library(GSVA)
 clusters_scored <-  gsva(as.matrix(imputed_data), cluster_list, mx.diff=FALSE, verbose=TRUE, parallel.sz=1, method = "ssgsea") #ssgsea
-clusters_cor <- cor(t(clusters_scored))
+clusters_cor <- cor(t(clusters_scored), method = "spearman")
 pdf("/home/degan/ip_proteomics/figures/UMAP/cluster_correlations.pdf", height = 4, width = 5)
 pheatmap(clusters_cor, show_colnames = F, fontsize_row = 8, treeheight_row = 14, 
          treeheight_col = 14, show_rownames = T)
@@ -327,8 +350,6 @@ saveRDS(cluster_assignment, "/home/degan/ip_proteomics/inputs/cluster_assignment
 ## prop pd1 proteins up in ctrl vs pd1 ####
 pd1_proteins <- cluster_assignment[cluster_assignment$cluster == 13,]
 
-## Run limma script to identify dep between ctrl and pd1 ####
-################################################################################
 
 ## checking prop of pd1 cluster in dep of pd1 vs ctrl ####
 ################################################################################
@@ -408,6 +429,7 @@ cluster_assignment <- data.frame(cluster = cds@clusters@listData[["UMAP"]][["clu
                                  cluster_id = colData(cds)$cluster_id)
 cluster_assignment <- merge(cluster_assignment, pgroups.meta, by.x =0 , by.y = "Protein.IDs")
 saveRDS(cluster_assignment, "/home/degan/ip_proteomics/inputs/cluster_assignments.Rds")
+tst <- readRDS("/home/degan/ip_proteomics/inputs/cluster_assignments.Rds")
 
 GO_results_filter <- list()
 for (i in unique(cluster_assignment$cluster)) {
@@ -446,3 +468,45 @@ ggplot(data=GO_scores, aes(x=node_name, y=logFWER)) +
   theme_bw()
 dev.off()
 
+## Build and export graph #####
+
+umap_graph <- cds@clusters@listData[["UMAP"]][["cluster_result"]][["relations"]]
+umap_graph$from_g <- pgroups.meta$Gene.names[match(umap_graph$from,pgroups.meta$Protein.IDs)]
+umap_graph$to_g <- pgroups.meta$Gene.names[match(umap_graph$to,pgroups.meta$Protein.IDs)] 
+umap_graph <- merge(umap_graph, cluster_assignment, by.x="from", by.y="Row.names")
+umap_graph <- umap_graph[umap_graph$cluster %in% c(4,13,17,19),]
+
+write_csv(umap_graph, "/home/degan/ip_proteomics/inputs/umap_graph_ip.csv")
+
+
+# plot expression of specific genes
+umap_mat <- cds@reduce_dim_aux@listData[["UMAP"]]@listData[["model"]]@listData[["umap_model"]][["embedding"]]
+umap_mat <- merge(umap_mat, cluster_assignment, by.x=0, by.y="Row.names")
+umap_mat <- umap_mat[umap_mat$cluster == 13,]
+
+rownames(umap_mat) <- NULL
+umap_mat <- column_to_rownames(umap_mat, "Gene.names")
+umap_dist <- as.matrix(dist(umap_mat, method='euclidean'))
+umap_dist <- 1 - umap_dist
+umap_dist <- umap_dist[!rownames(umap_dist) == "",]
+
+colfunc <- colorRampPalette(c("white","#ffe6e6","#ffd4d4","#FFD5D5","#FFAAAA","#FF8080","#FF0000", "#ff0808"))
+
+breaksList = seq(-1, 1, by = 0.001)
+pheatmap(umap_dist, show_colnames = F, fontsize_row = 6.5,  color = colfunc(length(breaksList)),
+         breaks = breaksList, filename = "/home/degan/ip_proteomics/figures/UMAP/dist_to_pd1.pdf", height = 5.5, width = 5.5,treeheight_row = 30,
+         treeheight_col = 10)
+
+
+## pathway plot ####
+pd1_gprofiler <- read_xlsx("/home/degan/ip_proteomics/inputs/pd1_gprofiler.xlsx",skip = 1, trim_ws = TRUE)
+pd1_gprofiler <- column_to_rownames(pd1_gprofiler,"Pathway")
+pd1_gprofiler <- pd1_gprofiler %>% mutate_all(as.numeric)
+pd1_gprofiler <- -log10(pd1_gprofiler)
+
+breaksList = seq(0, 10, by = 0.01)
+pheatmap::pheatmap(as.matrix(pd1_gprofiler),cluster_rows = F, cluster_cols = F,
+                   color = colorRampPalette(brewer.pal(n = 5, name =
+                                                         "Blues"))(length(breaksList)), breaks = breaksList,
+                   filename = "/home/degan/ip_proteomics/figures/UMAP/GO_term_each_cluster.pdf", height = 4.5, width = 5.5)
+                   
