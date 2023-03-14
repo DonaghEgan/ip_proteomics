@@ -1,2 +1,2 @@
 # ip_proteomics
-Analysis of ip proteomcis data 
+Analysis of ip proteomics data 
